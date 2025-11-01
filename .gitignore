@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (generated files)
+models/*.joblib
+models/*.pkl
+
+# Data (large files)
+data/embeddings.pkl
+data/me/*.jpg
+data/me/*.jpeg
+data/me/*.png
+data/not_me/*.jpg
+data/not_me/*.jpeg
+data/not_me/*.png
+data/cropped/**/*.jpg
+data/cropped/**/*.jpeg
+data/cropped/**/*.png
+
+# Reports (generated files)
+reports/*.json
+reports/*.png
+
+# Logs
+*.log
