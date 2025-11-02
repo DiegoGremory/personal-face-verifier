@@ -238,4 +238,4 @@ Este proyecto está disponible bajo la licencia MIT.
 
 ## Autor
 
-Diego Gremory
+Diego Lopez
