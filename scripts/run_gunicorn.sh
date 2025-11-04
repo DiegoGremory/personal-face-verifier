@@ -1,32 +1,27 @@
 #!/bin/bash
-#
-# Script para ejecutar la API Flask con Gunicorn en producción.
-#
-# Gunicorn es un servidor WSGI de Python para producción que permite
-# manejar múltiples workers y conexiones concurrentes.
+# ==============================================================
+# Run Gunicorn for Flask API
+# ==============================================================
 
-# Configuración
-HOST=${HOST:-0.0.0.0}
-PORT=${PORT:-5000}
-WORKERS=${WORKERS:-4}
-TIMEOUT=${TIMEOUT:-120}
+APP_MODULE="api.app:app"
+HOST="0.0.0.0"
+PORT="5000"
+WORKERS=2
+LOG_DIR="logs"
+ACCESS_LOG="$LOG_DIR/gunicorn_access.log"
+ERROR_LOG="$LOG_DIR/gunicorn_error.log"
 
-# Directorio de la aplicación
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Crear carpeta de logs si no existe
+mkdir -p $LOG_DIR
 
-echo "Starting Gunicorn server..."
-echo "  Host: $HOST"
-echo "  Port: $PORT"
-echo "  Workers: $WORKERS"
-echo "  Timeout: $TIMEOUT"
-
-cd "$APP_DIR"
+echo "🚀 Starting Gunicorn server..."
+echo "→ Module: $APP_MODULE"
+echo "→ Listening on: http://$HOST:$PORT"
+echo "→ Workers: $WORKERS"
 
 # Ejecutar Gunicorn
-gunicorn \
-    --bind "$HOST:$PORT" \
-    --workers "$WORKERS" \
-    --timeout "$TIMEOUT" \
-    --access-logfile - \
-    --error-logfile - \
-    api.app:app
+exec gunicorn -w $WORKERS -b $HOST:$PORT $APP_MODULE \
+  --access-logfile $ACCESS_LOG \
+  --error-logfile $ERROR_LOG \
+  --timeout 60 \
+  --log-level info

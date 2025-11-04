@@ -1,128 +1,121 @@
-"""
-Flask API for personal face verification.
-
-This module provides REST endpoints for facial verification,
-determining if a person in an image is the authenticated user.
-"""
-
-from flask import Flask, request, jsonify
 import os
-import joblib
+import io
+import time
 import numpy as np
 from PIL import Image
-import io
+from flask import Flask, request, jsonify
+from facenet_pytorch import MTCNN, InceptionResnetV1
+import torch
+import joblib
+from dotenv import load_dotenv
+from flask import send_from_directory
+
+# ----------------------------
+# CONFIGURACIÓN
+# ----------------------------
+load_dotenv()
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+MODEL_VERSION = os.getenv("MODEL_VERSION", "me-verifier-v1")
+THRESHOLD = float(os.getenv("THRESHOLD", 0.95))
+
+# Rutas de artefactos
+MODEL_PATH = "models/model.joblib"
+SCALER_PATH = "models/scaler.joblib"
+
+# ----------------------------
+# INICIALIZACIÓN DE MODELOS
+# ----------------------------
+print("🔹 Cargando modelo de verificación facial...")
+mtcnn = MTCNN(image_size=160, margin=0, device=DEVICE)
+resnet = InceptionResnetV1(pretrained='vggface2').eval().to(DEVICE)
+
+model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
 
 app = Flask(__name__)
 
-# Configuración
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'model.joblib')
-SCALER_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'scaler.joblib')
+# ----------------------------
+# UTILIDADES
+# ----------------------------
+def allowed_file(filename):
+    return filename.lower().endswith(('.jpg', '.jpeg', '.png'))
 
-# Cargar modelo y scaler (inicializar como None si no existen aún)
-model = None
-scaler = None
+def preprocess_image(file_bytes):
+    """Detecta y recorta el rostro usando MTCNN."""
+    img = Image.open(io.BytesIO(file_bytes)).convert('RGB')
+    face = mtcnn(img)
+    if face is None:
+        return None
+    return face.unsqueeze(0).to(DEVICE)
 
-try:
-    if os.path.exists(MODEL_PATH):
-        model = joblib.load(MODEL_PATH)
-    if os.path.exists(SCALER_PATH):
-        scaler = joblib.load(SCALER_PATH)
-except Exception as e:
-    print(f"Warning: Could not load models: {e}")
+# ----------------------------
+# ENDPOINTS
+# ----------------------------
+@app.route("/healthz", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok", "model_version": MODEL_VERSION})
 
-
-@app.route('/health', methods=['GET'])
-def health():
-    """
-    Health check endpoint.
-    
-    Returns:
-        JSON response with service status
-    """
-    return jsonify({
-        'status': 'ok',
-        'model_loaded': model is not None,
-        'scaler_loaded': scaler is not None
-    })
-
-
-@app.route('/verify', methods=['POST'])
+@app.route("/verify", methods=["POST"])
 def verify():
-    """
-    Verify if the person in the uploaded image is the authenticated user.
-    
-    Expected request:
-        - multipart/form-data with 'image' file
-    
-    Returns:
-        JSON response with verification result and confidence score
-    """
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image provided'}), 400
-    
-    if model is None or scaler is None:
-        return jsonify({'error': 'Model not loaded'}), 503
-    
+    start_time = time.time()
+
+    # Validar archivo
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type (only jpg/png allowed)"}), 400
+
+    file_bytes = file.read()
+
     try:
-        # Leer imagen
-        image_file = request.files['image']
-        image = Image.open(io.BytesIO(image_file.read()))
-        
-        # Aquí iría el procesamiento de la imagen y extracción de embeddings
-        # Por ahora, devolver respuesta de ejemplo
-        
+        face_tensor = preprocess_image(file_bytes)
+        if face_tensor is None:
+            return jsonify({"error": "No face detected"}), 400
+
+        # Embedding facial
+        with torch.no_grad():
+            emb = resnet(face_tensor).cpu().numpy()
+
+        # Escalar y predecir
+        emb_scaled = scaler.transform(emb)
+        if hasattr(model, "predict_proba"):
+            score = model.predict_proba(emb_scaled)[0, 1]
+        else:
+            # Para SVM lineal sin probas
+            from sklearn.preprocessing import MinMaxScaler
+            s = model.decision_function(emb_scaled).reshape(-1, 1)
+            score = MinMaxScaler().fit_transform(s)[0, 0]
+
+        # Verificación
+        is_me = bool(score >= THRESHOLD)
+        elapsed = (time.time() - start_time) * 1000
+
         return jsonify({
-            'is_me': True,
-            'confidence': 0.95,
-            'message': 'Verification successful (placeholder)'
+            "model_version": MODEL_VERSION,
+            "is_me": is_me,
+            "score": round(float(score), 4),
+            "threshold": THRESHOLD,
+            "timing_ms": round(elapsed, 2)
         })
-    
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/')
+def serve_frontend():
+    # Devuelve el archivo index.html desde la carpeta /static
+    return send_from_directory('../static', 'index.html')
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    """
-    Alternative endpoint for prediction with raw embeddings.
+@app.route('/<path:filename>')
+def serve_static(filename):
+    # Permite servir también script.js, style.css, etc.
+    return send_from_directory('../static', filename)
     
-    Expected request:
-        - JSON with 'embeddings' array
-    
-    Returns:
-        JSON response with prediction and probability
-    """
-    if model is None or scaler is None:
-        return jsonify({'error': 'Model not loaded'}), 503
-    
-    try:
-        data = request.get_json()
-        
-        if 'embeddings' not in data:
-            return jsonify({'error': 'No embeddings provided'}), 400
-        
-        embeddings = np.array(data['embeddings']).reshape(1, -1)
-        
-        # Escalar embeddings
-        embeddings_scaled = scaler.transform(embeddings)
-        
-        # Predecir
-        prediction = model.predict(embeddings_scaled)[0]
-        probability = model.predict_proba(embeddings_scaled)[0]
-        
-        return jsonify({
-            'prediction': int(prediction),
-            'is_me': bool(prediction == 1),
-            'probability': {
-                'not_me': float(probability[0]),
-                'me': float(probability[1])
-            }
-        })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-if __name__ == '__main__':
-    # Ejecutar en modo desarrollo
-    app.run(debug=True, host='0.0.0.0', port=5000)
+# ----------------------------
+# MAIN (para debug local)
+# ----------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)
