@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verificador Facial — Me Verifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
+    <div class="max-w-md w-full bg-gray-800 shadow-2xl rounded-2xl p-8">
+      <h1 class="text-2xl font-bold text-center text-indigo-400 mb-6">
+         Verificador Facial
+      </h1>
+
+      <form id="verify-form" class="space-y-6">
+        <div
+          id="upload-box"
+          class="flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-xl p-6 hover:border-indigo-400 transition relative"
+        >
+          <input type="file" id="imageInput" accept="image/png, image/jpeg" class="hidden" />
+          <label for="imageInput" class="cursor-pointer text-gray-300 hover:text-indigo-400">
+            📸 Selecciona una imagen (.jpg o .png)
+          </label>
+
+          <p id="file-name" class="mt-2 text-sm text-gray-400 hidden"></p>
+          <img id="preview" src="" alt="Vista previa" class="hidden mt-3 w-32 h-32 rounded-lg object-cover border border-gray-600" />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-4 rounded-lg font-semibold transition"
+        >
+          Verificar
+        </button>
+      </form>
+
+      <div id="result" class="hidden mt-6 text-center">
+        <p id="status" class="text-3xl font-extrabold mb-2"></p>
+        <p id="details" class="text-sm text-gray-400"></p>
+      </div>
+    </div>
+
+    <footer class="mt-6 text-sm text-gray-500">
+      Versión modelo: <span id="version">Cargando...</span>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+      fetch("/healthz")
+        .then((r) => r.json())
+        .then((d) => {
+          document.getElementById("version").textContent = d.model_version;
+        })
+        .catch(() => {
+          document.getElementById("version").textContent = "No disponible";
+        });
+    </script>
+  </body>
+</html>
