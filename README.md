@@ -68,48 +68,28 @@ Colocar imágenes en los directorios correspondientes:
 
 Recortar caras de las imágenes:
 ```bash
-# Procesar imágenes "me"
-python scripts/crop_faces.py --input data/me --output data/cropped/me
-
-# Procesar imágenes "not_me"
-python scripts/crop_faces.py --input data/not_me --output data/cropped/not_me
+python scripts/crop_faces.py
 ```
 
 ### 3. Extraer Embeddings
 
 Extraer embeddings faciales de las imágenes procesadas:
 ```bash
-python scripts/embeddings.py \
-    --me-dir data/cropped/me \
-    --not-me-dir data/cropped/not_me \
-    --output data/embeddings.pkl
+python scripts/embeddings.py 
 ```
 
 ### 4. Entrenar Modelo
 
 Entrenar el clasificador con los embeddings:
 ```bash
-python train.py \
-    --embeddings data/embeddings.pkl \
-    --model-type svm \
-    --model-output models/model.joblib \
-    --scaler-output models/scaler.joblib
+python train.py 
 ```
-
-Opciones de modelo:
-- `svm`: Support Vector Machine (recomendado)
-- `rf`: Random Forest
 
 ### 5. Evaluar Modelo
 
 Generar métricas y visualizaciones:
 ```bash
-python evaluate.py \
-    --embeddings data/embeddings.pkl \
-    --model models/model.joblib \
-    --scaler models/scaler.joblib \
-    --metrics-output reports/metrics.json \
-    --confusion-matrix-output reports/confusion_matrix.png
+python evaluate.py 
 ```
 
 ### 6. Ejecutar API
@@ -126,11 +106,6 @@ python api/app.py
 ./scripts/run_gunicorn.sh
 ```
 
-O con configuración personalizada:
-```bash
-HOST=0.0.0.0 PORT=8000 WORKERS=4 ./scripts/run_gunicorn.sh
-```
-
 ## API Endpoints
 
 ### Health Check
@@ -141,61 +116,37 @@ GET /health
 Respuesta:
 ```json
 {
-  "status": "ok",
-  "model_loaded": true,
-  "scaler_loaded": true
+"model_version": "me-verifier-v1",
+   "status": "ok"
 }
 ```
 
 ### Verificar Imagen
 ```bash
 POST /verify
-Content-Type: multipart/form-data
-
-image: <archivo de imagen>
 ```
-
-Respuesta:
+Respuesta no yo:
 ```json
 {
-  "is_me": true,
-  "confidence": 0.95,
-  "message": "Verification successful"
+"is_me": false,
+    "model_version": "me-verifier-v1",
+    "score": 0.0,
+    "threshold": 0.95,
+    "timing_ms": 318.25
 }
 ```
 
-### Predecir con Embeddings
-```bash
-POST /predict
-Content-Type: application/json
-
-{
-  "embeddings": [0.1, 0.2, ..., 0.128]
-}
-```
-
-Respuesta:
+Respuesta yo:
 ```json
 {
-  "prediction": 1,
-  "is_me": true,
-  "probability": {
-    "not_me": 0.05,
-    "me": 0.95
-  }
+    "is_me": true,
+    "model_version": "me-verifier-v1",
+    "score": 0.9996,
+    "threshold": 0.95,
+    "timing_ms": 1058.52
 }
 ```
 
-## Tests
-
-Ejecutar tests unitarios:
-```bash
-# Con unittest
-python -m unittest discover tests
-
-# Con pytest
-pytest tests/ -v
-```
 
 ## Estructura de Archivos Generados
 
@@ -209,14 +160,20 @@ StandardScaler de scikit-learn para normalizar embeddings.
 Métricas de evaluación en formato JSON:
 ```json
 {
-  "accuracy": 0.95,
-  "precision": 0.93,
-  "recall": 0.97,
-  "f1_score": 0.95,
-  "support": {
-    "not_me": 100,
-    "me": 100
-  }
+    "accuracy": 0.9978947368421053,
+    "auc": 0.9999333333333333,
+    "f1_best": 0.993288585604252,
+    "best_threshold": 0.9936454977148538,
+    "confusion_matrix": [
+        [
+            400,
+            0
+        ],
+        [
+            1,
+            74
+        ]
+    ]
 }
 ```
 
