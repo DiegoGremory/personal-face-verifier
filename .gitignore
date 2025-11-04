@@ -31,9 +31,6 @@ build/
 .DS_Store
 Thumbs.db
 
-# Models (generated files)
-models/*.joblib
-models/*.pkl
 
 # Data (large files)
 data/embeddings.pkl
